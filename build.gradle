@@ -8,6 +8,7 @@ apply plugin: 'java'
 
 dependencies {
 	compile group: 'com.google.code.gson', name: 'gson', version: '1.7.2'
+	compile group: 'commons-io', name: 'commons-io', version: '2.5'
 }
 
 task copyJars(type: Copy) {
