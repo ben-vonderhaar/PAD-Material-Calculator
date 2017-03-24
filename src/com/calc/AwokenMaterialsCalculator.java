@@ -8,7 +8,6 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -211,8 +210,12 @@ public class AwokenMaterialsCalculator {
 		return matches;
 	}
 	
-	public Map<Integer, Integer> getEvolutionMaterialsString(int monsterId) {
-		return getEvoMaterialsTo(new HashMap<Integer, Integer>(), 0, monsterId, -1);
+	public Card getEvolutionMaterialsString(int monsterId) {
+		return getEvoMaterialsTo(0, monsterId, -1);
+	}
+	
+	public Card getEvolutionMaterialsString(int monsterId, int fromMonsterId) {
+		return getEvoMaterialsTo(0, monsterId, fromMonsterId);
 	}
 	
 	private void oldConstructor () {
@@ -484,7 +487,7 @@ public class AwokenMaterialsCalculator {
 	 * @param fromMonsterId
 	 * @return
 	 */
-	private static String getEvoStringTo(int depth, int toMonsterId, int fromMonsterId) {
+	public static String getEvoStringTo(int depth, int toMonsterId, int fromMonsterId) {
 		
 		String evoString = getName(toMonsterId);
 		
@@ -546,75 +549,90 @@ public class AwokenMaterialsCalculator {
 	 * @param fromMonsterId
 	 * @return
 	 */
-	private static Map<Integer, Integer> getEvoMaterialsTo(Map<Integer, Integer> neededMaterials, int depth, int toMonsterId, int fromMonsterId) {
+	private static Card getEvoMaterialsTo(int depth, int toMonsterId, int fromMonsterId) {
+		
+		Card thisCard = new Card(toMonsterId);
+
+		if (toMonsterId == fromMonsterId) {
+			return thisCard;
+		}
 		
 		for (Integer i : evolutions.keySet()) {
 			
 			for (int j = 0; j < evolutions.get(i).size(); j++) {
 				
 				if (getEvolvesTo(i, j) == toMonsterId && i < toMonsterId) {
+					
 
-//					if (hasMaterial(i)) {
-//						System.out.println(getPrefixString(depth) + "__" + getName(i) + "__ -> " + getName(toMonsterId));
-//					} else {
-//						System.out.println(getPrefixString(depth) + i + ": " + getName(i) + " -> " + toMonsterId + ": " + getName(toMonsterId));
-//					}
-					
-					JsonArray materials = evolutions.get(i).get(j).getAsJsonObject().get("materials").getAsJsonArray();
-					
-					System.out.println(getPrefixString(depth) + i + ": " + getName(i) + " + " + materials 
-							+ " -> " + toMonsterId + ": " + getName(toMonsterId));
-					
-					for (int k = 0; k < materials.size(); k++) {
-						neededMaterials.put(materials.get(k).getAsJsonArray().get(0).getAsInt(), materials.get(k).getAsJsonArray().get(1).getAsInt());
-					}
-					
 					// Find potential mats for these mats
 					JsonArray evoMaterials = evolutions.get(i).get(j).getAsJsonObject().get("materials").getAsJsonArray();
 					
+					System.out.println(getPrefixString(depth) + i + ": " + getName(i) + " + " + evoMaterials 
+							+ " -> " + toMonsterId + ": " + getName(toMonsterId));
+					
+					System.out.println(getPrefixString(depth) + "=====Materials=====");
+					
+					System.out.println(evoMaterials);
+					
 					for (int k = 0; k < evoMaterials.size(); k++) {
+
+						int thisMonsterId = evoMaterials.get(k).getAsJsonArray().get(0).getAsInt();
+						Card material = new Card(thisMonsterId);
 						
-						if (!hasMaterial(evoMaterials.get(k).getAsJsonArray().get(0).getAsInt())) {
-							
-							Map<Integer, Integer> transitiveMaterials = 
-									getEvoMaterialsTo(neededMaterials, depth + 1, evoMaterials.get(k).getAsJsonArray().get(0).getAsInt(), -1);
-							
-							int thisMonsterId = evoMaterials.get(k).getAsJsonArray().get(0).getAsInt();
-							
-							if (!transitiveMaterials.isEmpty()) {
-								System.out.println("has transitive mats: " + getName(thisMonsterId));
-							} else {
-								System.out.println("chain leaf: " + getName(thisMonsterId));
+						// TODO determine if this particular card is farmable
+						// MP is not a possible cutoff point
+//						if (monsters.get(thisMonsterId).get("monster_points").getAsInt() < 1000) {
+//							System.out.println(getName(thisMonsterId) + " (" + thisMonsterId + ") is farmable and therefore a chain leaf");
+//							thisCard.addMaterial(material);
+//							continue;
+//						}
+						
+						for (int l = 0; l < evoMaterials.get(k).getAsJsonArray().get(1).getAsInt(); l++) {
+						
+							if (!hasMaterial(evoMaterials.get(k).getAsJsonArray().get(0).getAsInt())) {
 								
-								if (null == neededMaterials.get(thisMonsterId)) {
-									neededMaterials.put(thisMonsterId, 1);
+								System.out.println(getPrefixString(depth) + "Checking evo to " 
+										+ monsters.get(evoMaterials.get(k).getAsJsonArray().get(0).getAsInt()).get("name").getAsString()
+										+ " (id=" + evoMaterials.get(k).getAsJsonArray().get(0).getAsInt() + ", mp = "
+										+ monsters.get(evoMaterials.get(k).getAsJsonArray().get(0).getAsInt()).get("monster_points").getAsInt() + ")");
+								
+								Card previousEvoMaterial = 
+										getEvoMaterialsTo(depth + 1, evoMaterials.get(k).getAsJsonArray().get(0).getAsInt(), -1);
+								
+								System.out.println(getPrefixString(depth + 1) + previousEvoMaterial + "..." + thisMonsterId);
+								
+								if (previousEvoMaterial.getMaterials().size() == 0) {
+									//System.out.println(getPrefixString(depth + 1) + "Calculated transitive mats: " + getName(thisMonsterId));
+								//} else {
+
+									System.out.println(getPrefixString(depth + 1) + "Chain leaf: " + getName(thisMonsterId) + " (id=" + thisMonsterId + ")");
+									
+									thisCard.addMaterial(material);
 								} else {
-									neededMaterials.put(thisMonsterId, neededMaterials.get(thisMonsterId) + 1);
+									thisCard.addMaterial(previousEvoMaterial);
 								}
-							}
+								
+							} 
 							
-						} 
+						}
 						
 					}
+
+					Card previousEvolution = getEvoMaterialsTo(depth + 1, i, fromMonsterId);
 					
-					// If this material is in user's box, no need to further calculate evo chain.
-					if (hasMaterial(i)) {
-					//	return "__" + getName(i) + "__ -> " + evoString;
+					if (previousEvolution.getMaterials().size() == 0) {
+						System.out.println(getPrefixString(depth) + "Chain leaf: " + getName(previousEvolution.getId())
+							+ " (id=" + previousEvolution.getId() + ")");
 					}
 					
-					// Evolution chain relative start found.
-					if (i == fromMonsterId) {
-					//	return "__" + getName(fromMonsterId) + "__ -> " + evoString;
-					}
+					thisCard.addMaterial(previousEvolution); 
 					
-					// Calculate previous evo in chain.
-					getEvoMaterialsTo(neededMaterials, depth + 1, i, fromMonsterId);
 					break;
 				}
 			}
 		}
 		
-		return neededMaterials;
+		return thisCard;
 	}
 	
 	public static boolean hasMaterial(int monsterId) {
@@ -706,10 +724,21 @@ public class AwokenMaterialsCalculator {
 	public static void main(String [] args) {
 		AwokenMaterialsCalculator amc = new AwokenMaterialsCalculator();
 
+		MaterialList materialList = new MaterialList(amc.getEvolutionMaterialsString(2969));
+		Map<Integer, Integer> materials = materialList.getMaterials();
+		
+		// Missing 3 keeper of flame, 2 dragon flower, 2 rubylit, 2 mythlit, extra dub rubylit, 
+		
+		System.out.println("Need:");
+		
+		for (Integer monsterId : materials.keySet()) {
+			System.out.println(materials.get(monsterId) + " " + getName(monsterId));
+		}
+		
 		Scanner scanner = new Scanner(System.in);
 		
 		// Infinitely listen for commands
-		while (true) {
+		/*while (true) {
 			System.out.print("Enter command (add/list/quit): ");
 			String command = scanner.nextLine();
 			
@@ -772,7 +801,7 @@ public class AwokenMaterialsCalculator {
 				System.out.println("unrecognized command");
 			}
 			
-		}
+		}*/
 		
 		scanner.close();
 	}
